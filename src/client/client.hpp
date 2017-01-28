@@ -59,6 +59,7 @@
 #include "../common/Scheduler/CDFMessageScheduler.hpp"
 #include "../common/Scheduler/RandomMessageScheduler.hpp"
 
+#include <queue>
 
 using namespace std;
 
@@ -78,7 +79,8 @@ class Client
             string disconnectorStrategyIn, string disconnectorStrategyOut, int quantityDisconnect,
 			string connectorStrategy, unsigned int minimalBandwidthToBeMyIN, int timeToRemovePeerOutWorseBand,
 			string chunkSchedulerStrategy, string messageSendScheduler, string messageReceptionScheduler,
-			int maxPartnersOutFREE, unsigned int outLimitToSeparateFree);
+			int maxPartnersOutFREE, unsigned int outLimitToSeparateFree, 
+            unsigned int minimumDelay, unsigned int maximumDelay);
         virtual void Ping();
         void CyclicTimers();
         void PeerCtoPeerA();
@@ -92,7 +94,13 @@ class Client
         int FeedPlayer(int32_t id);
         void UDPStart();
         void UDPReceive();
-        void UDPSend();
+        void UDPSend(); // UDPSend original.
+
+        void CyclicTimerSend(); // CyclicTimer modificado.
+        void UDPSendWithCyclicTimer(); // UDPSend p/ funcionar em conjunto do CyclicTimer modificado.
+        void UDPSendControlMessage(); // UDPSend que envia msgs de controle e enfileira os chunks.
+        void UDPSendChunks(); // UDPSend que envia os chunks enfileirados em intervalos de tempo.
+        void UDPSendWithDelay(); // UDPSend com atraso para todas as msgs.
 
         void Exit();
 
@@ -144,6 +152,12 @@ class Client
 		bool configurarBootID;   //controla a autenticação do bootstrapID no primeiro contato com o bootstrap
 		uint32_t bootStrapID_Autentic;
 
+        // ATRASO
+        unsigned int minimumDelay; // Limite inferior de atraso.
+        unsigned int maximumDelay; // Limite superior de atraso.
+        bool sendChunks; // Variável de controle para envio de chunks por intervalo de tempo. (CyclicTimerSend e UDPSendWithCyclicTimer)
+        queue<AddressedMessage*> chunksQueue; // Fila para chunks. (CyclicTimerSend e UDPSendWithCyclicTimer)
+        FIFOMessageScheduler* chunksFIFOScheduler; // Fila para chunks. (UDPSendChunks e UDPSendControlMessage)
 
 		//ECM
 		Disconnector* disconnectorIn;

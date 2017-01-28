@@ -66,6 +66,10 @@ int main (int argc, char* argv[])
     int limitDownload = -1;
     int limitUpload = -1;
 
+    unsigned int minimumDelay = 0; //Atraso.
+    unsigned int maximumDelay = 0; //Atraso.
+    unsigned int delayMode = 0;
+
     																// ** Used for disconnector
 	string disconnectorStrategyIn = "None";                         //ECM separate In and Out to be possible disconnect only Out or In or both
 	string disconnectorStrategyOut = "None";                        //ECM ensures that make peerListOut new connections
@@ -138,6 +142,14 @@ int main (int argc, char* argv[])
             cout <<"  --clientLogsDisabled          disables client logging service"<<endl;
             cout <<"  --leakyBucketDataFilter       forces data packets only to pass through upload leaky bucket"<<endl;
             cout <<"  --serverCandidate             permits that peer becomes a auxiliary server on parallel network"<<endl;
+            cout <<"                  ***           "<<endl;
+            cout <<"  --minimumDelay [0-500]        define a minimum delay (in milliseconds) to send messages (default: 0)."<<endl;
+            cout <<"  --maximumDelay [0-500]        define a maximum delay (in milliseconds) to send messages (default: 0)."<<endl;
+            cout <<"  --delayMode [0-3]             define the sending messages method (default: 0)."<<endl;
+            cout <<"                                    **0: Original method UDPSend."<<endl;
+            cout <<"                                    **1: Method with isolated control messages and modified CyclicTimer for sending chunks."<<endl;
+            cout <<"                                    **2: Method with a thread to send control messages and another thread for sending chunks with delay."<<endl;
+            cout <<"                                    **3: Method with delay for all messages by sending them in batch."<<endl;
             exit(1);
         }
         else
@@ -328,6 +340,21 @@ int main (int argc, char* argv[])
         {
             XPConfig::Instance()->SetBool("serverCandidate", true);
         }
+        else if (swtc=="--minimumDelay") //Atraso minimo.
+        {
+            optind++;
+            minimumDelay = atoi(argv[optind]);
+        }
+        else if (swtc=="--maximumDelay") //Atraso maximo.
+        {
+            optind++;
+            maximumDelay = atoi(argv[optind]);
+        }
+        else if (swtc=="--delayMode") //--delayMode
+        {
+            optind++;
+            delayMode = atoi(argv[optind]);
+        }
         else
         {
             cout << "Invalid Arguments. Try --help"<<endl;
@@ -340,12 +367,45 @@ int main (int argc, char* argv[])
                                 peerPort, streamingPort, mode, bufferSize, 
                                 maxPartnersIn, maxPartnersOut, windowOfInterest, requestLimit, ttlIn, ttlOut, maxRequestAttempt, tipOffsetTime, limitDownload, limitUpload,
                                 disconnectorStrategyIn, disconnectorStrategyOut, quantityDisconnect, connectorStrategy, minimalBandwidthToBeMyIN, timeToRemovePeerOutWorseBand,
-								chunkSchedulerStrategy, messageSendScheduler, messageReceiveScheduler, maxPartnersOutFREE, outLimitToSeparateFree);
+								chunkSchedulerStrategy, messageSendScheduler, messageReceiveScheduler, maxPartnersOutFREE, outLimitToSeparateFree, minimumDelay, maximumDelay);
     
     boost::thread TPING(boost::bind(&Client::Ping, &clientInstance));
     boost::thread TUDPSTART(boost::bind(&Client::UDPStart, &clientInstance));
     boost::thread TUDPRECEIVE(boost::bind(&Client::UDPReceive, &clientInstance));
-    boost::thread TUDPSEND(boost::bind(&Client::UDPSend, &clientInstance));
+    
+    //Atraso
+    // If delay parameters was not settup execute the original UDPSend method.
+    if (minimumDelay == 0 && maximumDelay == 0)
+    {    
+        boost::thread TUDPSEND(boost::bind(&Client::UDPSend, &clientInstance)); // Original UDPSend method.
+    }
+    else
+    {
+        if(delayMode == 0) // Original UDPSend method.
+        {
+            boost::thread TUDPSEND(boost::bind(&Client::UDPSend, &clientInstance));
+        }
+        else if(delayMode == 1) // Method with isolated control messages and modified CyclicTimer for sending chunks.
+        {
+            boost::thread TUDPSENDCYCLIC(boost::bind(&Client::UDPSendWithCyclicTimer, &clientInstance));            
+            boost::thread TTIMERSEND(boost::bind(&Client::CyclicTimerSend, &clientInstance));
+        }
+        else if(delayMode == 2) // Method with a thread to send control msgs and another thread for sending chunks with delay.
+        {
+            boost::thread TUDPSENDCONTROL(boost::bind(&Client::UDPSendControlMessage, &clientInstance));
+            boost::thread TUDPSENDCHUNK(boost::bind(&Client::UDPSendChunks, &clientInstance)); 
+        }
+        else if(delayMode == 3) // Method with delay for all messages by sending them in batch.
+        {
+            boost::thread TUDPSENDDELAY(boost::bind(&Client::UDPSendWithDelay, &clientInstance));
+        }
+        else 
+        {
+            cout << "Invalid delayMode. Try --help"<<endl;
+            exit(1);
+        }
+    }
+    
     boost::thread TTIMER(boost::bind(&Client::CyclicTimers, &clientInstance));
     if (mode == 1) //MODE_SERVER
     {

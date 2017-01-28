@@ -248,3 +248,18 @@ AddressedMessage* UDPServer::GetNextMessageToSend()
     else
         return NULL;
 }
+
+unsigned int UDPServer::GetSendSchedulerSize() 
+{
+  if (sendScheduler)
+  {
+    boost::unique_lock<boost::mutex> lock(emptySendBuffMutex_);
+    if(sendScheduler->GetSize() <= 0)
+    {
+      emptySendBuff_.wait(lock);
+    }
+    return sendScheduler->GetSize();
+  }
+  else
+    return 0;
+}
