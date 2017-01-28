@@ -1736,12 +1736,6 @@ void Client::UDPSendWithCyclicTimer()
         {
             if (aMessage->GetAge() < 0.5) // If message older than 500 ms
             {
-                if (leakyBucketUpload) //If do exist leaky bucket 
-                {
-                    //If only data passes the leaky bucket
-                    if (!XPConfig::Instance()->GetBool("leakyBucketDataFilter") || aMessage->GetMessage()->GetOpcode() == OPCODE_DATA) 
-                        while (!leakyBucketUpload->DecToken(aMessage->GetMessage()->GetSize())); //while leaky bucket cannot provide
-                }
 
                 if (aMessage->GetMessage()->GetOpcode() == OPCODE_DATA)
                 {
@@ -1749,6 +1743,13 @@ void Client::UDPSendWithCyclicTimer()
                 }
                 else 
                 {
+                    if (leakyBucketUpload) //If do exist leaky bucket 
+                    {
+                        //If only data passes the leaky bucket
+                        if (!XPConfig::Instance()->GetBool("leakyBucketDataFilter") || aMessage->GetMessage()->GetOpcode() == OPCODE_DATA) 
+                            while (!leakyBucketUpload->DecToken(aMessage->GetMessage()->GetSize())); //while leaky bucket cannot provide
+                    }
+
                     udp->Send(aMessage->GetAddress(),aMessage->GetMessage()->GetFirstByte(),aMessage->GetMessage()->GetSize());
                 }                                   
             }
@@ -1791,20 +1792,20 @@ void Client::UDPSendControlMessage()
         if (aMessage)
         {
             if (aMessage->GetAge() < 0.5) // If message older than 500 ms
-            {
-                if (leakyBucketUpload) //If do exist leaky bucket 
-                {
-                    //If only data passes the leaky bucket
-                    if (!XPConfig::Instance()->GetBool("leakyBucketDataFilter") || aMessage->GetMessage()->GetOpcode() == OPCODE_DATA) 
-                        while (!leakyBucketUpload->DecToken(aMessage->GetMessage()->GetSize())); //while leaky bucket cannot provide
-                }
-                
+            {   
                 if (aMessage->GetMessage()->GetOpcode() == OPCODE_DATA)
                 {
                     this->chunksFIFOScheduler->Push(aMessage);
                 }
                 else 
                 {
+                    if (leakyBucketUpload) //If do exist leaky bucket 
+                    {
+                        //If only data passes the leaky bucket
+                        if (!XPConfig::Instance()->GetBool("leakyBucketDataFilter") || aMessage->GetMessage()->GetOpcode() == OPCODE_DATA) 
+                            while (!leakyBucketUpload->DecToken(aMessage->GetMessage()->GetSize())); //while leaky bucket cannot provide
+                    }
+                    
                     udp->Send(aMessage->GetAddress(),aMessage->GetMessage()->GetFirstByte(),aMessage->GetMessage()->GetSize());
                 }
             }
