@@ -28,6 +28,7 @@ public:
    AddressedMessage* GetNextMessageToReceive();
    void EnqueueSend(std::string address, Message* message);
    AddressedMessage* GetNextMessageToSend();
+   unsigned int GetSendSchedulerSize();
    void Run();
    virtual void Start();
    virtual void Stop();
